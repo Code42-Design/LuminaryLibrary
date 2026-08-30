@@ -1,0 +1,1931 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full bg-slate-950 text-slate-100">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lumina Library - Virtual Shelf & ISBN Scanner</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        amber: { 950: '#281305' },
+                        shelf: {
+                            wood: '#2c1d11',
+                            woodLight: '#3d2919',
+                            darkWood: '#1a100a',
+                            shadow: 'rgba(0,0,0,0.6)'
+                        }
+                    },
+                    fontFamily: {
+                        serif: ['Georgia', 'Cambria', 'Times New Roman', 'serif'],
+                        sans: ['Inter', 'system-ui', 'sans-serif'],
+                        mono: ['Courier New', 'Courier', 'monospace']
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- FontAwesome & Lucide Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts for Realistic Book Titles & Carved Labels -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;800;900&family=Playfair+Display:ital,wght@0,600;0,800;1,600&family=Special+Elite&display=swap" rel="stylesheet">
+    <!-- SortableJS for smooth drag & drop -->
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+
+    <style>
+        /* Wood & Shelf Textures */
+        .wood-shelf {
+            background: linear-gradient(180deg, #422a18 0%, #2a180b 70%, #170d05 100%);
+            box-shadow: 
+                inset 0 4px 6px rgba(255, 255, 255, 0.08),
+                inset 0 -6px 12px rgba(0, 0, 0, 0.9),
+                0 12px 24px rgba(0, 0, 0, 0.7);
+            border-top: 3px solid #634027;
+            border-bottom: 4px solid #120903;
+        }
+
+        /* 3D Interactive Rotatable Book Container */
+        .book-3d-scene {
+            perspective: 1000px;
+            cursor: grab;
+            user-select: none;
+        }
+        .book-3d-scene:active {
+            cursor: grabbing;
+        }
+        .book-3d-object {
+            width: 190px;
+            height: 280px;
+            position: relative;
+            transform-style: preserve-3d;
+            transition: transform 0.1s ease-out;
+            transform: rotateY(-25deg) rotateX(10deg);
+        }
+        .book-3d-face {
+            position: absolute;
+            backface-visibility: hidden;
+            border-radius: 4px;
+        }
+        .book-3d-front {
+            width: 100%;
+            height: 100%;
+            transform: translateZ(16px);
+        }
+        .book-3d-back {
+            width: 100%;
+            height: 100%;
+            transform: rotateY(180deg) translateZ(16px);
+            background: #1e293b;
+            border: 2px solid rgba(255,255,255,0.1);
+        }
+        .book-3d-spine {
+            width: 32px;
+            height: 100%;
+            left: -16px;
+            transform: rotateY(-90deg) translateZ(0);
+            transform-origin: center right;
+        }
+        .book-3d-pages {
+            width: 30px;
+            height: 96%;
+            top: 2%;
+            right: -15px;
+            transform: rotateY(90deg);
+            background: linear-gradient(90deg, #fef3c7 0%, #fffbebe6 50%, #fde68a 100%);
+            box-shadow: inset 0 0 5px rgba(0,0,0,0.3);
+            background-image: repeating-linear-gradient(0deg, rgba(0,0,0,0.06) 0, rgba(0,0,0,0.06) 2px, transparent 0, transparent 4px);
+        }
+
+        .shelf-backboard {
+            background: linear-gradient(180deg, rgba(24, 17, 11, 0.9) 0%, rgba(13, 9, 6, 0.95) 100%);
+            box-shadow: inset 0 0 40px rgba(0,0,0,0.9);
+            transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        /* -------------------------------------------------------------
+           CUTIFY & DYNAMICALLY TRANSFORM ALL SHELF THEMES
+        ---------------------------------------------------------------- */
+
+        /* 🌸 Theme 1: Kawaii Pastel Dream */
+        body.theme-kawaii {
+            background-color: #fce7f3;
+            background-image: 
+                radial-gradient(#f472b6 2px, transparent 2px), 
+                radial-gradient(#f472b6 2px, #fce7f3 2px);
+            background-size: 32px 32px;
+            background-position: 0 0, 16px 16px;
+            color: #831843;
+        }
+        body.theme-kawaii .shelf-backboard {
+            background: linear-gradient(180deg, #fff0f5 0%, #fbcfe8 100%);
+            box-shadow: inset 0 0 25px rgba(244, 114, 182, 0.3), 0 10px 25px rgba(244, 114, 182, 0.15);
+            border: 2px solid #f9a8d4;
+        }
+        body.theme-kawaii .wood-shelf {
+            background: linear-gradient(180deg, #f472b6 0%, #db2777 60%, #9d174d 100%);
+            border-top: 3px solid #fbcfe8;
+            border-bottom: 4px solid #831843;
+            box-shadow: inset 0 3px 6px rgba(255, 255, 255, 0.4), 0 10px 20px rgba(219, 39, 119, 0.35);
+        }
+        body.theme-kawaii .bg-slate-900\/90,
+        body.theme-kawaii .bg-slate-900\/70,
+        body.theme-kawaii .bg-slate-900\/60 {
+            background-color: rgba(253, 242, 248, 0.9);
+            border-color: #fbcfe8;
+            color: #831843;
+        }
+        body.theme-kawaii h1, body.theme-kawaii h2, body.theme-kawaii .text-slate-100 {
+            color: #831843 !important;
+        }
+
+        /* 🌿 Theme 2: Cottagecore Garden */
+        body.theme-cottagecore {
+            background-color: #1c2e24;
+            background-image: 
+                radial-gradient(#345c47 1.5px, transparent 1.5px),
+                linear-gradient(to right, rgba(255,255,255,0.03) 1px, transparent 1px);
+            background-size: 28px 28px;
+            color: #e2e8f0;
+        }
+        body.theme-cottagecore .shelf-backboard {
+            background: linear-gradient(180deg, #2a4034 0%, #17271e 100%);
+            box-shadow: inset 0 0 30px rgba(0, 0, 0, 0.7), 0 10px 20px rgba(16, 185, 129, 0.1);
+            border: 2px solid #345c47;
+        }
+        body.theme-cottagecore .wood-shelf {
+            background: linear-gradient(180deg, #5c4028 0%, #3d2817 70%, #24160a 100%);
+            border-top: 3px solid #8d6239;
+            border-bottom: 4px solid #180d05;
+            box-shadow: inset 0 2px 4px rgba(255,255,255,0.2), 0 12px 24px rgba(0, 0, 0, 0.8);
+        }
+
+        /* ✨ Theme 3: Celestial Starlight */
+        body.theme-celestial {
+            background-color: #0b0f19;
+            background-image: 
+                radial-gradient(#818cf8 1.5px, transparent 1.5px), 
+                radial-gradient(#c084fc 1px, #0b0f19 1px);
+            background-size: 40px 40px, 20px 20px;
+            background-position: 0 0, 10px 10px;
+        }
+        body.theme-celestial .shelf-backboard {
+            background: linear-gradient(180deg, #1e1b4b 0%, #0f172a 100%);
+            box-shadow: inset 0 0 40px rgba(129, 140, 248, 0.25), 0 10px 25px rgba(99, 102, 241, 0.2);
+            border: 2px solid #3730a3;
+        }
+        body.theme-celestial .wood-shelf {
+            background: linear-gradient(180deg, #6366f1 0%, #4338ca 60%, #1e1b4b 100%);
+            border-top: 3px solid #a5b4fc;
+            border-bottom: 4px solid #0f172a;
+            box-shadow: inset 0 3px 6px rgba(255, 255, 255, 0.3), 0 10px 25px rgba(99, 102, 241, 0.4);
+        }
+
+        /* 🔮 Theme 4: Neon Synthwave */
+        body.theme-synthwave {
+            background-color: #12072b;
+            background-image: 
+                linear-gradient(to right, rgba(236, 72, 153, 0.15) 1px, transparent 1px),
+                linear-gradient(to bottom, rgba(236, 72, 153, 0.15) 1px, transparent 1px);
+            background-size: 30px 30px;
+        }
+        body.theme-synthwave .shelf-backboard {
+            background: linear-gradient(180deg, #2e1065 0%, #170736 100%);
+            box-shadow: inset 0 0 35px rgba(236, 72, 153, 0.3), 0 0 20px rgba(168, 85, 247, 0.2);
+            border: 2px solid #a855f7;
+        }
+        body.theme-synthwave .wood-shelf {
+            background: linear-gradient(180deg, #06b6d4 0%, #0284c7 60%, #0f172a 100%);
+            border-top: 3px solid #67e8f9;
+            border-bottom: 4px solid #2e1065;
+            box-shadow: 0 0 25px rgba(6, 182, 212, 0.6);
+        }
+
+        /* ☕ Theme 5: Cozy Mocha Nook */
+        body.theme-cozy {
+            background-color: #1c1917;
+            background-image: 
+                radial-gradient(#44403c 1.5px, transparent 1.5px);
+            background-size: 24px 24px;
+        }
+        body.theme-cozy .shelf-backboard {
+            background: linear-gradient(180deg, #292524 0%, #1c1917 100%);
+            box-shadow: inset 0 0 35px rgba(217, 119, 6, 0.15);
+            border: 2px solid #44403c;
+        }
+        body.theme-cozy .wood-shelf {
+            background: linear-gradient(180deg, #78350f 0%, #451a03 70%, #1c1917 100%);
+            border-top: 3px solid #b45309;
+            border-bottom: 4px solid #0c0a09;
+            box-shadow: inset 0 2px 4px rgba(255,255,255,0.15), 0 10px 20px rgba(0, 0, 0, 0.8);
+        }
+
+        /* 🍄 Theme 6: Enchanted Mossy Forest */
+        body.theme-fairy {
+            background-color: #061817;
+            background-image: 
+                radial-gradient(#10b981 1.5px, transparent 1.5px),
+                radial-gradient(#34d399 1px, #061817 1px);
+            background-size: 36px 36px, 18px 18px;
+            background-position: 0 0, 9px 9px;
+        }
+        body.theme-fairy .shelf-backboard {
+            background: linear-gradient(180deg, #064e3b 0%, #022c22 100%);
+            box-shadow: inset 0 0 40px rgba(52, 211, 153, 0.25);
+            border: 2px solid #047857;
+        }
+        body.theme-fairy .wood-shelf {
+            background: linear-gradient(180deg, #059669 0%, #047857 60%, #022c22 100%);
+            border-top: 3px solid #6ee7b7;
+            border-bottom: 4px solid #022c22;
+            box-shadow: 0 10px 25px rgba(16, 185, 129, 0.35);
+        }
+
+        /* 🪵 Theme 7: Antique Walnut Library */
+        body.theme-walnut {
+            background: #0f0a06;
+            background-image: radial-gradient(#26160c 1px, transparent 1px), radial-gradient(#26160c 1px, #0f0a06 1px);
+            background-size: 40px 40px;
+            background-position: 0 0, 20px 20px;
+        }
+        body.theme-walnut .shelf-backboard {
+            background: linear-gradient(180deg, rgba(24, 17, 11, 0.9) 0%, rgba(13, 9, 6, 0.95) 100%);
+            box-shadow: inset 0 0 40px rgba(0,0,0,0.9);
+            border: 2px solid #2a180b;
+        }
+        body.theme-walnut .wood-shelf {
+            background: linear-gradient(180deg, #422a18 0%, #2a180b 70%, #170d05 100%);
+            border-top: 3px solid #634027;
+            border-bottom: 4px solid #120903;
+            box-shadow: 0 12px 24px rgba(0, 0, 0, 0.7);
+        }
+
+        /* 📜 Theme 8: Warm Parchment Nook */
+        body.theme-parchment {
+            background: #1c1714;
+            background-image: radial-gradient(#3a2e26 1.5px, transparent 1.5px);
+            background-size: 28px 28px;
+            color: #f1f5f9;
+        }
+        body.theme-parchment .shelf-backboard {
+            background: linear-gradient(180deg, #32261e 0%, #1f1712 100%);
+            box-shadow: inset 0 0 30px rgba(217, 119, 6, 0.2);
+            border: 2px solid #4a372c;
+        }
+        body.theme-parchment .wood-shelf {
+            background: linear-gradient(180deg, #92400e 0%, #78350f 70%, #451a03 100%);
+            border-top: 3px solid #d97706;
+            border-bottom: 4px solid #1c1714;
+            box-shadow: 0 10px 20px rgba(180, 83, 9, 0.3);
+        }
+
+        /* Dynamic Book Spine & Cover Realistic Visuals */
+        .book-spine {
+            transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.25s ease, filter 0.2s;
+            transform-origin: bottom center;
+            user-select: none;
+            cursor: grab;
+            position: relative;
+        }
+
+        .book-spine:active {
+            cursor: grabbing;
+        }
+
+        .book-spine:hover {
+            transform: translateY(-16px) scale(1.04) translateZ(10px);
+            z-index: 40 !important;
+            box-shadow: 0 22px 30px -5px rgba(0, 0, 0, 0.8), 0 10px 12px -5px rgba(0, 0, 0, 0.5);
+        }
+
+        /* Realistic Book Spine Crease and Specular Lighting */
+        .spine-crease {
+            background: linear-gradient(90deg, 
+                rgba(0,0,0,0.6) 0%, 
+                rgba(255,255,255,0.25) 8%, 
+                rgba(255,255,255,0.08) 18%, 
+                rgba(0,0,0,0) 45%, 
+                rgba(0,0,0,0.25) 85%, 
+                rgba(0,0,0,0.7) 100%);
+        }
+
+        /* Cover Finishes & Texture Overlays */
+        .texture-leather {
+            background-image: radial-gradient(rgba(255, 255, 255, 0.08) 1px, transparent 0);
+            background-size: 4px 4px;
+        }
+
+        .texture-cloth {
+            background-image: repeating-linear-gradient(45deg, rgba(255,255,255,0.04) 0, rgba(255,255,255,0.04) 2px, transparent 0, transparent 4px);
+        }
+
+        .texture-parchment {
+            background-image: radial-gradient(circle, rgba(0,0,0,0.15) 0%, rgba(0,0,0,0) 70%);
+        }
+
+        .texture-glossy {
+            background: linear-gradient(135deg, rgba(255,255,255,0.25) 0%, rgba(255,255,255,0) 40%, rgba(0,0,0,0.2) 100%);
+        }
+
+        /* Foil Text Styling */
+        .spine-foil {
+            background: linear-gradient(135deg, #fef08a 0%, #d4af37 40%, #ffffff 60%, #aa7c11 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.8);
+        }
+
+        .spine-silver {
+            background: linear-gradient(135deg, #ffffff 0%, #cbd5e1 40%, #ffffff 70%, #64748b 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        /* Ribbon Bookmark hanging from book top */
+        .bookmark-ribbon {
+            width: 8px;
+            height: 26px;
+            position: absolute;
+            top: -10px;
+            right: 12px;
+            clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 80%, 0 100%);
+            box-shadow: 0 3px 5px rgba(0,0,0,0.6);
+            z-index: 15;
+        }
+
+        /* -------------------------------------------------------------
+           Shelf Label Styles (Wood Carved, Brass Plate, Dymo Tape, etc.)
+        ---------------------------------------------------------------- */
+        .label-carved-wood {
+            font-family: 'Cinzel', serif;
+            letter-spacing: 0.12em;
+            color: #d4a373;
+            text-shadow: -1px -1px 1px rgba(0,0,0,0.9), 1px 1px 1px rgba(255,255,255,0.1);
+            background: linear-gradient(180deg, #2b180d 0%, #1a0e07 100%);
+            border: 1px solid #4a2c17;
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.8), 0 2px 4px rgba(0,0,0,0.5);
+            padding: 3px 14px;
+            border-radius: 4px;
+        }
+
+        .label-brass-plate {
+            font-family: 'Cinzel', serif;
+            font-weight: 800;
+            color: #261605;
+            background: linear-gradient(135deg, #e6c566 0%, #eedb92 35%, #b89329 70%, #f7eaab 100%);
+            border: 1px solid #856414;
+            box-shadow: 0 3px 6px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.8);
+            padding: 2px 14px;
+            border-radius: 3px;
+            letter-spacing: 0.08em;
+            text-shadow: 0 1px 0 rgba(255,255,255,0.4);
+        }
+
+        .label-dymo-tape {
+            font-family: 'Special Elite', monospace;
+            background: #18181b;
+            color: #f4f4f5;
+            padding: 3px 12px;
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.7);
+            border: 1px border #27272a;
+            border-radius: 2px;
+        }
+
+        .label-gold-inlay {
+            font-family: 'Playfair Display', serif;
+            font-weight: 800;
+            background: linear-gradient(135deg, #ffe082 0%, #cca028 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            letter-spacing: 0.05em;
+            filter: drop-shadow(0 2px 4px rgba(0,0,0,0.9));
+        }
+
+        .label-minimal-text {
+            font-family: 'Inter', sans-serif;
+            font-weight: 600;
+            color: #cbd5e1;
+            letter-spacing: 0.04em;
+        }
+
+        /* Pull-off shelf modal animation */
+        @keyframes pullBookOut {
+            0% { transform: scale(0.6) rotateY(-25deg) translateY(100px); opacity: 0; }
+            100% { transform: scale(1) rotateY(0deg) translateY(0); opacity: 1; }
+        }
+
+        .animate-pull-book {
+            animation: pullBookOut 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+
+        /* Scrollbar styles for catalog shelves */
+        .custom-scrollbar::-webkit-scrollbar {
+            height: 8px;
+            width: 8px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: rgba(15, 23, 42, 0.6);
+            border-radius: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #334155;
+            border-radius: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #475569;
+        }
+    </style>
+</head>
+<body class="h-full font-sans antialiased overflow-x-hidden flex flex-col min-h-screen bg-slate-950 text-slate-100 theme-walnut transition-colors duration-500">
+
+    <header class="sticky top-0 z-50 bg-slate-900/90 backdrop-blur-md border-b border-slate-800 px-4 lg:px-8 py-3.5 shadow-xl">
+        <div class="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
+            <!-- Brand Logo -->
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-amber-600 via-amber-500 to-yellow-400 flex items-center justify-center shadow-lg shadow-amber-900/30 text-slate-950 font-bold text-xl">
+                    <i class="fa-solid font-bold fa-book-bookmark"></i>
+                </div>
+                <div>
+                    <h1 class="text-xl font-bold tracking-tight text-slate-100 flex items-center gap-2">
+                        Lumina Library
+                        <span class="text-xs px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30 font-medium">Realistic 3D Visualizer</span>
+                    </h1>
+                    <p class="text-xs text-slate-400">Scan, catalog, & manage your personal bookshelf</p>
+                </div>
+            </div>
+
+            <!-- Search, Background Customizer & Actions -->
+            <div class="flex items-center gap-3 w-full md:w-auto">
+                <div class="relative flex-1 md:w-56">
+                    <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm"></i>
+                    <input type="text" id="searchInput" placeholder="Search title, author, genre..." 
+                        class="w-full bg-slate-800/80 border border-slate-700/80 rounded-lg pl-9 pr-4 py-2 text-sm text-slate-200 focus:outline-none focus:border-amber-500 transition-colors placeholder:text-slate-500">
+                </div>
+
+                <!-- Guided Interactive Demo Button -->
+                <button id="runDemoBtn" class="flex items-center gap-2 bg-gradient-to-r from-purple-600 via-indigo-600 to-pink-500 hover:from-purple-500 hover:to-pink-400 text-white font-bold px-3.5 py-2 rounded-lg text-xs sm:text-sm shadow-lg shadow-purple-900/40 transition-all hover:scale-105 animate-pulse" title="Watch live interactive features in action">
+                    <i class="fa-solid fa-bolt text-yellow-300"></i>
+                    <span>Demo in Action</span>
+                </button>
+
+                <!-- Background Theme Picker Dropdown -->
+                <div class="relative">
+                    <select id="bgThemeSelect" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs text-amber-300 font-semibold px-3 py-2 rounded-lg cursor-pointer focus:outline-none focus:border-amber-500 transition-colors">
+                        <option value="theme-kawaii">🌸 Kawaii Pastel Dream</option>
+                        <option value="theme-cottagecore">🌿 Cottagecore Garden</option>
+                        <option value="theme-celestial">✨ Celestial Starlight</option>
+                        <option value="theme-fairy">🍄 Enchanted Forest</option>
+                        <option value="theme-synthwave">🔮 Neon Synthwave</option>
+                        <option value="theme-cozy">☕ Cozy Mocha Nook</option>
+                        <option value="theme-walnut">🪵 Antique Walnut</option>
+                        <option value="theme-parchment">📜 Parchment Nook</option>
+                    </select>
+                </div>
+
+                <button id="openScannerBtn" class="flex items-center gap-2 bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-slate-950 font-semibold px-4 py-2 rounded-lg text-sm shadow-md transition-all hover:shadow-amber-500/20">
+                    <i class="fa-solid fa-barcode"></i>
+                    <span class="hidden sm:inline">Scan / Add Book</span>
+                </button>
+
+                <button id="addCategoryBtn" class="bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white px-3 py-2 rounded-lg border border-slate-700 text-sm flex items-center gap-1.5 transition-colors" title="Add New Category Shelf">
+                    <i class="fa-solid fa-folder-plus"></i>
+                    <span class="hidden sm:inline">New Shelf</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <main class="flex-1 max-w-7xl w-full mx-auto px-4 lg:px-8 py-6 flex flex-col gap-6">
+
+        <!-- Quick Library Overview & Stats Bar -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div class="bg-slate-900/70 backdrop-blur-sm border border-slate-800/80 rounded-xl p-3.5 flex items-center gap-3.5">
+                <div class="p-2.5 rounded-lg bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+                    <i class="fa-solid fa-books text-lg"></i>
+                </div>
+                <div>
+                    <div id="statTotalBooks" class="text-xl font-bold text-slate-100">0</div>
+                    <div class="text-xs text-slate-400">Total Books</div>
+                </div>
+            </div>
+
+            <div class="bg-slate-900/70 backdrop-blur-sm border border-slate-800/80 rounded-xl p-3.5 flex items-center gap-3.5">
+                <div class="p-2.5 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                    <i class="fa-solid fa-book-open-reader text-lg"></i>
+                </div>
+                <div>
+                    <div id="statReading" class="text-xl font-bold text-slate-100">0</div>
+                    <div class="text-xs text-slate-400">Currently Reading</div>
+                </div>
+            </div>
+
+            <div class="bg-slate-900/70 backdrop-blur-sm border border-slate-800/80 rounded-xl p-3.5 flex items-center gap-3.5">
+                <div class="p-2.5 rounded-lg bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                    <i class="fa-solid fa-circle-check text-lg"></i>
+                </div>
+                <div>
+                    <div id="statCompleted" class="text-xl font-bold text-slate-100">0</div>
+                    <div class="text-xs text-slate-400">Finished Reading</div>
+                </div>
+            </div>
+
+            <div class="bg-slate-900/70 backdrop-blur-sm border border-slate-800/80 rounded-xl p-3.5 flex items-center gap-3.5">
+                <div class="p-2.5 rounded-lg bg-rose-500/10 text-rose-400 border border-rose-500/20">
+                    <i class="fa-solid fa-star text-lg"></i>
+                </div>
+                <div>
+                    <div id="statAvgRating" class="text-xl font-bold text-slate-100">0.0</div>
+                    <div class="text-xs text-slate-400">Avg Library Rating</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Shelf Customization Controls & Filter Chips -->
+        <div class="flex flex-wrap items-center justify-between gap-4 bg-slate-900/60 backdrop-blur-sm p-3 rounded-xl border border-slate-800/50">
+            <div class="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0 custom-scrollbar" id="categoryTabsContainer">
+                <!-- Dynamically populated category filter chips -->
+            </div>
+
+            <div class="flex items-center gap-4 text-xs text-slate-400">
+                <span class="flex items-center gap-1.5">
+                    <i class="fa-solid fa-hand-pointer text-amber-400"></i> Click spine to pull off shelf
+                </span>
+                <span class="hidden sm:flex items-center gap-1.5">
+                    <i class="fa-solid fa-arrows-up-down-left-right text-indigo-400"></i> Drag & drop spines to reorder
+                </span>
+            </div>
+        </div>
+
+        <div id="bookshelvesContainer" class="flex flex-col gap-10 py-2">
+            <!-- Dynamic Category Shelves will be rendered here -->
+        </div>
+    </main>
+
+    <!-- Scanner & Manual Add Modal -->
+    <div id="scannerModal" class="fixed inset-0 z-50 hidden bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
+        <div class="bg-slate-900 border border-slate-800 w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+            <div class="px-6 py-4 border-b border-slate-800 flex items-center justify-between bg-slate-900/80">
+                <div class="flex items-center gap-2">
+                    <i class="fa-solid fa-barcode text-amber-400 text-lg"></i>
+                    <h3 class="font-bold text-lg text-slate-100">Add Book to Library</h3>
+                </div>
+                <button id="closeScannerBtn" class="text-slate-400 hover:text-white p-2 rounded-lg hover:bg-slate-800 transition-colors">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+
+            <div class="p-6 overflow-y-auto space-y-6 custom-scrollbar">
+                
+                <div class="flex bg-slate-950 p-1 rounded-xl border border-slate-800">
+                    <button id="tabScanMode" class="flex-1 py-2 text-xs sm:text-sm font-semibold rounded-lg bg-amber-500 text-slate-950 transition-all">
+                        <i class="fa-solid fa-camera mr-1.5"></i> Live Camera / ISBN Lookup
+                    </button>
+                    <button id="tabManualMode" class="flex-1 py-2 text-xs sm:text-sm font-semibold rounded-lg text-slate-400 hover:text-slate-200 transition-all">
+                        <i class="fa-solid fa-pen-to-square mr-1.5"></i> Custom Manual Entry
+                    </button>
+                </div>
+
+                <!-- SCAN MODE SECTION -->
+                <div id="scanModeView" class="space-y-4">
+                    <div class="relative bg-slate-950 rounded-xl overflow-hidden border border-slate-800 aspect-video flex flex-col items-center justify-center">
+                        <video id="cameraVideo" class="w-full h-full object-cover hidden" playsinline></video>
+                        <canvas id="cameraCanvas" class="hidden"></canvas>
+                        
+                        <div id="cameraPlaceholder" class="text-center p-6 space-y-3">
+                            <div class="w-14 h-14 rounded-full bg-slate-800/80 flex items-center justify-center mx-auto text-amber-400 text-2xl border border-slate-700">
+                                <i class="fa-solid fa-camera-rotate"></i>
+                            </div>
+                            <div>
+                                <h4 class="font-semibold text-slate-200 text-sm">Scan ISBN Barcode or Cover</h4>
+                                <p class="text-xs text-slate-400 max-w-xs mx-auto">Point camera at barcode or front cover to auto-fetch details.</p>
+                            </div>
+                            <button id="startCameraBtn" class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold px-4 py-2 rounded-lg transition-colors">
+                                Enable Camera Scanner
+                            </button>
+                        </div>
+
+                        <div id="scanOverlay" class="absolute inset-0 pointer-events-none hidden border-2 border-amber-500/40 m-8 rounded-lg flex items-center justify-center">
+                            <div class="w-full h-0.5 bg-amber-400 shadow-[0_0_15px_#f59e0b] animate-pulse"></div>
+                            <div class="absolute top-2 left-2 text-[10px] uppercase font-mono bg-amber-500 text-slate-950 font-bold px-1.5 py-0.5 rounded">Scanner Active</div>
+                        </div>
+                    </div>
+
+                    <div class="relative flex items-center my-2">
+                        <div class="flex-grow border-t border-slate-800"></div>
+                        <span class="flex-shrink mx-4 text-xs text-slate-500 font-medium">OR ENTER ISBN / SEARCH TITLE</span>
+                        <div class="flex-grow border-t border-slate-800"></div>
+                    </div>
+
+                    <div class="flex gap-2">
+                        <input type="text" id="isbnSearchInput" placeholder="Enter ISBN (e.g. 9780441172719) or Book Title..." 
+                            class="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-amber-500">
+                        <button id="doIsbnSearchBtn" class="bg-amber-500 hover:bg-amber-400 text-slate-950 font-semibold px-4 py-2.5 rounded-xl text-sm transition-colors flex items-center gap-1.5">
+                            <i class="fa-solid fa-magnifying-glass"></i>
+                            <span>Lookup</span>
+                        </button>
+                    </div>
+
+                    <div class="space-y-1.5">
+                        <label class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Try Demo ISBN Scans:</label>
+                        <div class="flex flex-wrap gap-2">
+                            <button class="preset-isbn bg-slate-800/80 hover:bg-slate-700 border border-slate-700/60 text-xs px-2.5 py-1.5 rounded-lg text-slate-300" data-isbn="9780441172719">
+                                Dune (Herbert)
+                            </button>
+                            <button class="preset-isbn bg-slate-800/80 hover:bg-slate-700 border border-slate-700/60 text-xs px-2.5 py-1.5 rounded-lg text-slate-300" data-isbn="9780593135204">
+                                Project Hail Mary
+                            </button>
+                            <button class="preset-isbn bg-slate-800/80 hover:bg-slate-700 border border-slate-700/60 text-xs px-2.5 py-1.5 rounded-lg text-slate-300" data-isbn="9780735211292">
+                                Atomic Habits
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- MANUAL FORM -->
+                <form id="bookForm" class="space-y-4">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-300 mb-1">Book Title *</label>
+                            <input type="text" id="formTitle" required class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-slate-100 focus:border-amber-500 focus:outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-300 mb-1">Author *</label>
+                            <input type="text" id="formAuthor" required class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-slate-100 focus:border-amber-500 focus:outline-none">
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-300 mb-1">Category Shelf *</label>
+                            <select id="formCategory" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-slate-100 focus:border-amber-500 focus:outline-none">
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-300 mb-1">Total Pages</label>
+                            <input type="number" id="formPageCount" value="320" min="1" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-slate-100 focus:border-amber-500 focus:outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-300 mb-1">Reading Status</label>
+                            <select id="formStatus" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-slate-100 focus:border-amber-500 focus:outline-none">
+                                <option value="unread">To Read</option>
+                                <option value="reading">Currently Reading</option>
+                                <option value="completed">Completed</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Realistic Spine & Cover Customizer -->
+                    <div class="p-3 bg-slate-950 rounded-xl border border-slate-800/80 space-y-3">
+                        <div class="flex items-center justify-between">
+                            <span class="text-xs font-bold text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
+                                <i class="fa-solid fa-palette"></i> Realistic Cover & Spine Styling
+                            </span>
+                        </div>
+                        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                            <div>
+                                <label class="block text-[11px] text-slate-400 mb-1">Base Color</label>
+                                <input type="color" id="formSpineColor" value="#8b263e" class="w-full h-8 rounded border border-slate-700 bg-slate-900 cursor-pointer">
+                            </div>
+                            <div>
+                                <label class="block text-[11px] text-slate-400 mb-1">Text & Foil Color</label>
+                                <input type="color" id="formTextColor" value="#ffd700" class="w-full h-8 rounded border border-slate-700 bg-slate-900 cursor-pointer">
+                            </div>
+                            <div>
+                                <label class="block text-[11px] text-slate-400 mb-1">Realistic Finish / Texture</label>
+                                <select id="formSpinePattern" class="w-full bg-slate-900 border border-slate-800 rounded text-xs px-2 py-1.5 text-slate-200">
+                                    <option value="texture-leather">Grained Leather</option>
+                                    <option value="texture-cloth">Vintage Cloth Bound</option>
+                                    <option value="texture-glossy">Modern High Gloss</option>
+                                    <option value="texture-parchment">Aged Parchment</option>
+                                    <option value="gold-embossed">Gold Embossed Foil</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-[11px] text-slate-400 mb-1">Ribbon Bookmark</label>
+                                <select id="formRibbonColor" class="w-full bg-slate-900 border border-slate-800 rounded text-xs px-2 py-1.5 text-slate-200">
+                                    <option value="#dc2626">Crimson Red</option>
+                                    <option value="#d97706">Gold Velvet</option>
+                                    <option value="#2563eb">Royal Blue</option>
+                                    <option value="#059669">Emerald Green</option>
+                                    <option value="none">No Ribbon</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-300 mb-1">Cover Image URL (Optional)</label>
+                        <input type="url" id="formCoverUrl" placeholder="https://..." class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-slate-100 focus:border-amber-500 focus:outline-none">
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-300 mb-1">Synopsis</label>
+                        <textarea id="formSynopsis" rows="3" placeholder="Enter book synopsis or summary..." class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-slate-100 focus:border-amber-500 focus:outline-none resize-none"></textarea>
+                    </div>
+
+                    <div class="pt-2 flex justify-end gap-3">
+                        <button type="button" id="cancelAddBtn" class="px-4 py-2 rounded-lg text-sm text-slate-400 hover:text-white hover:bg-slate-800 transition-colors">
+                            Cancel
+                        </button>
+                        <button type="submit" class="bg-amber-500 hover:bg-amber-400 text-slate-950 font-semibold px-6 py-2 rounded-lg text-sm transition-colors flex items-center gap-1.5 shadow-md shadow-amber-500/10">
+                            <i class="fa-solid fa-plus"></i> Place on Shelf
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Pull-Off Book Detail Modal -->
+    <div id="bookDetailModal" class="fixed inset-0 z-50 hidden bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4">
+        <div id="bookDetailCard" class="bg-slate-900 border border-slate-800 w-full max-w-3xl rounded-2xl shadow-2xl overflow-hidden animate-pull-book flex flex-col md:flex-row max-h-[90vh]">
+            
+            <!-- Left Side: Interactive 360-Degree 3D Book Viewer -->
+            <div class="w-full md:w-2/5 bg-slate-950 p-6 flex flex-col items-center justify-center border-b md:border-b-0 md:border-r border-slate-800 relative overflow-hidden group">
+                <div id="coverAmbientGlow" class="absolute inset-0 opacity-30 filter blur-3xl pointer-events-none"></div>
+
+                <div class="text-[10px] text-amber-400/80 font-mono uppercase mb-2 flex items-center gap-1">
+                    <i class="fa-solid fa-hand-pointer"></i> Drag to rotate 3D book
+                </div>
+
+                <!-- 3D Book Scene -->
+                <div class="book-3d-scene" id="book3dScene">
+                    <div class="book-3d-object" id="book3dObject">
+                        <!-- Front Face -->
+                        <div class="book-3d-face book-3d-front overflow-hidden shadow-2xl bg-slate-800 flex flex-col justify-between p-4" id="detailCoverContainer">
+                            <img id="detailCoverImg" src="" alt="Book Cover" class="absolute inset-0 w-full h-full object-cover hidden">
+                            <div id="detailCoverFallback" class="flex flex-col h-full justify-between z-10 relative">
+                                <div id="detailCoverTextureOverlay" class="absolute inset-0 pointer-events-none opacity-40"></div>
+                                <span id="detailFallbackGenre" class="text-[10px] uppercase font-mono tracking-widest font-bold text-amber-300/90 z-10">FICTION</span>
+                                <div class="space-y-1.5 z-10">
+                                    <h3 id="detailFallbackTitle" class="font-serif font-bold text-lg leading-snug tracking-tight">Book Title</h3>
+                                    <p id="detailFallbackAuthor" class="text-xs opacity-90 font-serif italic">Author Name</p>
+                                </div>
+                                <div class="text-[9px] opacity-70 flex justify-between items-center z-10 tracking-widest uppercase font-semibold">
+                                    <span>HARDCOVER</span>
+                                    <i class="fa-solid fa-book-bookmark"></i>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 3D Spine Side -->
+                        <div class="book-3d-face book-3d-spine flex items-center justify-center text-[10px] font-bold tracking-tight text-amber-300 overflow-hidden" id="detail3dSpine">
+                            <span class="transform -rotate-90 whitespace-nowrap truncate max-w-[200px]" id="detail3dSpineText">SPINE</span>
+                        </div>
+
+                        <!-- 3D Back Cover -->
+                        <div class="book-3d-face book-3d-back p-4 text-[10px] text-slate-300 flex flex-col justify-between" id="detail3dBack">
+                            <div>
+                                <div class="font-bold text-amber-400 uppercase tracking-widest text-[9px] mb-1">LUMINA EDITION</div>
+                                <p class="line-clamp-6 font-serif opacity-80" id="detail3dBackSynopsis">Synopsis preview...</p>
+                            </div>
+                            <div class="border-t border-slate-700 pt-2 flex items-center justify-between">
+                                <i class="fa-solid fa-barcode text-xl text-slate-400"></i>
+                                <span class="font-mono text-[9px]">ISBN-978-0-LUMINA</span>
+                            </div>
+                        </div>
+
+                        <!-- 3D Paper Pages Block -->
+                        <div class="book-3d-face book-3d-pages"></div>
+                    </div>
+                </div>
+
+                <button id="reset3dViewBtn" class="mt-4 text-[11px] bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-1 rounded-full border border-slate-700 transition-colors">
+                    <i class="fa-solid fa-rotate-right mr-1"></i> Reset View Angle
+                </button>
+            </div>
+
+            <!-- Right Side: Synopsis, Reading Progress, Rating Controls -->
+            <div class="w-full md:w-3/5 p-6 flex flex-col justify-between overflow-y-auto custom-scrollbar space-y-6">
+                
+                <div class="space-y-4">
+                    <div class="flex items-center justify-between">
+                        <span id="detailCategoryBadge" class="px-3 py-1 rounded-full text-xs font-semibold bg-slate-800 text-amber-400 border border-slate-700">
+                            Sci-Fi & Fantasy
+                        </span>
+                        <div class="flex items-center gap-2">
+                            <button id="deleteBookBtn" class="text-slate-400 hover:text-rose-400 p-1.5 rounded-lg hover:bg-slate-800 text-sm transition-colors" title="Remove Book from Shelf">
+                                <i class="fa-solid fa-trash-can"></i>
+                            </button>
+                            <button id="closeDetailBtn" class="text-slate-400 hover:text-white p-1.5 rounded-lg hover:bg-slate-800 text-sm transition-colors">
+                                <i class="fa-solid fa-xmark text-lg"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div>
+                        <h2 id="detailTitle" class="text-2xl font-serif font-bold text-slate-100 leading-tight">Book Title</h2>
+                        <p id="detailAuthor" class="text-sm font-medium text-amber-400/90 mt-0.5">by Author Name</p>
+                    </div>
+
+                    <!-- Interactive Star Rating -->
+                    <div class="flex items-center gap-3 bg-slate-950/70 p-3 rounded-xl border border-slate-800">
+                        <span class="text-xs font-semibold text-slate-300">Your Rating:</span>
+                        <div id="ratingStarsContainer" class="flex gap-1 text-amber-400 text-lg cursor-pointer">
+                            <i class="fa-regular fa-star star-btn" data-rating="1"></i>
+                            <i class="fa-regular fa-star star-btn" data-rating="2"></i>
+                            <i class="fa-regular fa-star star-btn" data-rating="3"></i>
+                            <i class="fa-regular fa-star star-btn" data-rating="4"></i>
+                            <i class="fa-regular fa-star star-btn" data-rating="5"></i>
+                        </div>
+                        <span id="ratingValueText" class="text-xs font-bold text-amber-400 ml-auto">Unrated</span>
+                    </div>
+
+                    <!-- Reading Progress Bar & Interactive Input -->
+                    <div class="bg-slate-950/70 p-4 rounded-xl border border-slate-800 space-y-2.5">
+                        <div class="flex items-center justify-between text-xs">
+                            <span class="font-semibold text-slate-300 flex items-center gap-1.5">
+                                <i class="fa-solid fa-bookmark text-amber-400"></i> Reading Progress
+                            </span>
+                            <span id="progressPercentageText" class="font-bold text-amber-400">0%</span>
+                        </div>
+
+                        <div class="w-full h-3 bg-slate-800 rounded-full overflow-hidden p-0.5 border border-slate-700/60">
+                            <div id="progressBarFill" class="h-full bg-gradient-to-r from-amber-500 to-yellow-400 rounded-full transition-all duration-300" style="width: 0%;"></div>
+                        </div>
+
+                        <div class="flex items-center justify-between gap-3 pt-1">
+                            <div class="flex items-center gap-2 text-xs text-slate-400">
+                                <span>Page</span>
+                                <input type="number" id="detailCurrentPageInput" value="0" min="0" class="w-16 bg-slate-900 border border-slate-700 rounded px-2 py-1 text-slate-100 text-center font-mono focus:border-amber-500 focus:outline-none">
+                                <span>of <span id="detailTotalPagesSpan">320</span></span>
+                            </div>
+
+                            <select id="detailStatusSelect" class="bg-slate-900 border border-slate-700 rounded px-2.5 py-1 text-xs text-slate-200 focus:outline-none focus:border-amber-500">
+                                <option value="unread">To Read</option>
+                                <option value="reading">Currently Reading</option>
+                                <option value="completed">Completed</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Synopsis Text -->
+                    <div class="space-y-1.5">
+                        <h4 class="text-xs font-bold uppercase tracking-wider text-slate-400">Synopsis</h4>
+                        <p id="detailSynopsis" class="text-xs sm:text-sm text-slate-300 leading-relaxed font-serif bg-slate-950/40 p-3 rounded-xl border border-slate-800/60 max-h-32 overflow-y-auto custom-scrollbar">
+                            No synopsis available for this title yet.
+                        </p>
+                    </div>
+                </div>
+
+                <div class="pt-2 border-t border-slate-800 flex justify-between items-center text-xs text-slate-500">
+                    <span>ID: <span id="detailBookId" class="font-mono text-[10px]">#0000</span></span>
+                    <button id="saveBookChangesBtn" class="bg-amber-500 hover:bg-amber-400 text-slate-950 font-semibold px-4 py-2 rounded-lg transition-colors flex items-center gap-1.5">
+                        <i class="fa-solid fa-floppy-disk"></i> Save Progress
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Category Shelf & Label Customization Modal -->
+    <div id="categoryModal" class="fixed inset-0 z-50 hidden bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
+        <div class="bg-slate-900 border border-slate-800 w-full max-w-md rounded-2xl shadow-2xl p-6 space-y-4">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+                <h3 class="font-bold text-lg text-slate-100 flex items-center gap-2">
+                    <i class="fa-solid fa-folder-plus text-amber-400"></i> Add / Customize Category Shelf
+                </h3>
+                <button id="closeCategoryBtn" class="text-slate-400 hover:text-white">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+            <div>
+                <label class="block text-xs font-semibold text-slate-300 mb-1">Category / Shelf Name</label>
+                <input type="text" id="newCategoryNameInput" placeholder="e.g., Philosophy, High Fantasy, Favorites..." class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-slate-100 focus:border-amber-500 focus:outline-none">
+            </div>
+
+            <div>
+                <label class="block text-xs font-semibold text-slate-300 mb-1">Shelf Label Aesthetics</label>
+                <select id="shelfLabelStyleSelect" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-slate-100 focus:border-amber-500 focus:outline-none">
+                    <option value="label-carved-wood">🪵 Carved Wood Plaque</option>
+                    <option value="label-brass-plate">🪙 Polished Brass Plate</option>
+                    <option value="label-dymo-tape">🏷️ Black Dymo Embossed Tape</option>
+                    <option value="label-gold-inlay">✨ Gold Inlay Lettering</option>
+                    <option value="label-minimal-text">📜 Minimal Slate Text</option>
+                </select>
+            </div>
+
+            <div class="flex justify-end gap-3 pt-2">
+                <button id="cancelCategoryBtn" class="px-4 py-1.5 rounded-lg text-sm text-slate-400 hover:text-white">Cancel</button>
+                <button id="saveCategoryBtn" class="bg-amber-500 hover:bg-amber-400 text-slate-950 font-semibold px-4 py-1.5 rounded-lg text-sm transition-colors">Create Shelf</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification Popup -->
+    <div id="toast" class="fixed bottom-5 right-5 z-50 transform translate-y-20 opacity-0 transition-all duration-300 bg-slate-900 border border-amber-500/40 text-slate-100 px-4 py-3 rounded-xl shadow-2xl flex items-center gap-3">
+        <div id="toastIcon" class="text-amber-400 text-lg"><i class="fa-solid fa-circle-check"></i></div>
+        <div id="toastMsg" class="text-xs sm:text-sm font-medium">Notification message</div>
+    </div>
+
+    <script>
+        const STORAGE_KEY = 'lumina_library_books_v2';
+        const CAT_STORAGE_KEY = 'lumina_library_categories_v2';
+        const LABEL_STYLE_KEY = 'lumina_library_label_styles_v2';
+        const BG_THEME_KEY = 'lumina_library_bg_theme_v2';
+
+        /* -------------------------------------------------------------
+           WEB AUDIO SYNTHESIZER FOR IMMERSIVE SOUND EFFECTS
+        ---------------------------------------------------------------- */
+        const AudioFX = {
+            ctx: null,
+            init() {
+                if (!this.ctx) {
+                    const AudioContext = window.AudioContext || window.webkitAudioContext;
+                    if (AudioContext) this.ctx = new AudioContext();
+                }
+                if (this.ctx && this.ctx.state === 'suspended') {
+                    this.ctx.resume();
+                }
+            },
+            playPullBook() {
+                this.init();
+                if (!this.ctx) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(120, this.ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(320, this.ctx.currentTime + 0.15);
+                gain.gain.setValueAtTime(0.15, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.15);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.15);
+            },
+            playScanBeep() {
+                this.init();
+                if (!this.ctx) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(880, this.ctx.currentTime);
+                osc.frequency.setValueAtTime(1760, this.ctx.currentTime + 0.08);
+                gain.gain.setValueAtTime(0.2, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.2);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.2);
+            },
+            playPageFlip() {
+                this.init();
+                if (!this.ctx) return;
+                const bufferSize = this.ctx.sampleRate * 0.1;
+                const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+                const data = buffer.getChannelData(0);
+                for (let i = 0; i < bufferSize; i++) {
+                    data[i] = Math.random() * 2 - 1;
+                }
+                const noise = this.ctx.createBufferSource();
+                noise.buffer = buffer;
+                const filter = this.ctx.createBiquadFilter();
+                filter.type = 'bandpass';
+                filter.frequency.setValueAtTime(800, this.ctx.currentTime);
+                filter.Q.setValueAtTime(3, this.ctx.currentTime);
+                const gain = this.ctx.createGain();
+                gain.gain.setValueAtTime(0.12, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.1);
+                noise.connect(filter);
+                filter.connect(gain);
+                gain.connect(this.ctx.destination);
+                noise.start();
+            },
+            playChime() {
+                this.init();
+                if (!this.ctx) return;
+                [523.25, 659.25, 783.99].forEach((freq, idx) => {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(freq, this.ctx.currentTime + idx * 0.06);
+                    gain.gain.setValueAtTime(0.1, this.ctx.currentTime + idx * 0.06);
+                    gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + idx * 0.06 + 0.4);
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.start(this.ctx.currentTime + idx * 0.06);
+                    osc.stop(this.ctx.currentTime + idx * 0.06 + 0.4);
+                });
+            }
+        };
+
+        const defaultCategories = [
+            "Currently Reading",
+            "Sci-Fi & Fantasy",
+            "Non-Fiction & Growth",
+            "Classics & Fiction",
+            "Wishlist / To Read"
+        ];
+
+        const defaultBooks = [
+            {
+                id: 'b-101',
+                title: 'Dune',
+                author: 'Frank Herbert',
+                category: 'Sci-Fi & Fantasy',
+                pages: 688,
+                currentPage: 420,
+                status: 'reading',
+                rating: 5,
+                synopsis: 'Set on the desert planet Arrakis, Dune is the story of Paul Atreides, heir to a noble family tasked with ruling an inhospitable world where the only thing of value is the spice melange.',
+                spineColor: '#c27d38',
+                textColor: '#fdf6e3',
+                spinePattern: 'gold-embossed',
+                ribbonColor: '#dc2626',
+                coverUrl: 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=500&q=80'
+            },
+            {
+                id: 'b-102',
+                title: 'Project Hail Mary',
+                author: 'Andy Weir',
+                category: 'Sci-Fi & Fantasy',
+                pages: 496,
+                currentPage: 496,
+                status: 'completed',
+                rating: 5,
+                synopsis: 'Ryland Grace is the sole survivor on a desperate, last-chance mission—and if he fails, humanity and the earth itself will perish.',
+                spineColor: '#0f4c81',
+                textColor: '#ffffff',
+                spinePattern: 'texture-glossy',
+                ribbonColor: '#d97706',
+                coverUrl: 'https://images.unsplash.com/photo-1516979187457-637abb4f9353?w=500&q=80'
+            },
+            {
+                id: 'b-103',
+                title: 'Atomic Habits',
+                author: 'James Clear',
+                category: 'Non-Fiction & Growth',
+                pages: 320,
+                currentPage: 150,
+                status: 'reading',
+                rating: 4,
+                synopsis: 'An easy & proven way to build good habits & break bad ones. Tiny changes, remarkable results.',
+                spineColor: '#e5e7eb',
+                textColor: '#111827',
+                spinePattern: 'texture-glossy',
+                ribbonColor: 'none',
+                coverUrl: ''
+            },
+            {
+                id: 'b-104',
+                title: 'Neuromancer',
+                author: 'William Gibson',
+                category: 'Sci-Fi & Fantasy',
+                pages: 271,
+                currentPage: 0,
+                status: 'unread',
+                rating: 0,
+                synopsis: 'Case was the freshest cowboy on the matrix until he crossed the wrong people. Now a mysterious employer recruits him for a high-stakes heist.',
+                spineColor: '#1e1b4b',
+                textColor: '#38bdf8',
+                spinePattern: 'texture-cloth',
+                ribbonColor: '#2563eb',
+                coverUrl: ''
+            },
+            {
+                id: 'b-105',
+                title: 'Pride and Prejudice',
+                author: 'Jane Austen',
+                category: 'Classics & Fiction',
+                pages: 432,
+                currentPage: 432,
+                status: 'completed',
+                rating: 5,
+                synopsis: 'A romantic novel of manners written by Jane Austen in 1813. The novel follows the character development of Elizabeth Bennet.',
+                spineColor: '#581c87',
+                textColor: '#fef08a',
+                spinePattern: 'texture-leather',
+                ribbonColor: '#d97706',
+                coverUrl: ''
+            },
+            {
+                id: 'b-106',
+                title: 'The Hobbit',
+                author: 'J.R.R. Tolkien',
+                category: 'Currently Reading',
+                pages: 310,
+                currentPage: 185,
+                status: 'reading',
+                rating: 5,
+                synopsis: 'Bilbo Baggins is a hobbit who enjoys a comfortable, unambitious life, rarely traveling any further than his pantry.',
+                spineColor: '#14532d',
+                textColor: '#fef08a',
+                spinePattern: 'texture-leather',
+                ribbonColor: '#dc2626',
+                coverUrl: ''
+            }
+        ];
+
+        let categories = JSON.parse(localStorage.getItem(CAT_STORAGE_KEY)) || defaultCategories;
+        let books = JSON.parse(localStorage.getItem(STORAGE_KEY)) || defaultBooks;
+        let shelfLabelStyles = JSON.parse(localStorage.getItem(LABEL_STYLE_KEY)) || {};
+        let activeCategoryFilter = 'All';
+        let currentEditingBookId = null;
+        let mediaStream = null;
+
+        // 3D Book Drag Variables
+        let isDragging3d = false;
+        let previousMousePosition = { x: 0, y: 0 };
+        let bookRotation = { x: 10, y: -25 };
+
+        function init3dRotator() {
+            const scene = document.getElementById('book3dScene');
+            const bookObj = document.getElementById('book3dObject');
+            const resetBtn = document.getElementById('reset3dViewBtn');
+
+            function applyRotation() {
+                bookObj.style.transform = `rotateX(${bookRotation.x}deg) rotateY(${bookRotation.y}deg)`;
+            }
+
+            scene.addEventListener('mousedown', (e) => {
+                isDragging3d = true;
+                previousMousePosition = { x: e.clientX, y: e.clientY };
+            });
+
+            window.addEventListener('mousemove', (e) => {
+                if (!isDragging3d) return;
+                const deltaX = e.clientX - previousMousePosition.x;
+                const deltaY = e.clientY - previousMousePosition.y;
+
+                bookRotation.y += deltaX * 0.7;
+                bookRotation.x -= deltaY * 0.7;
+
+                // Clamp X rotation to prevent flipping upside down
+                bookRotation.x = Math.max(-60, Math.min(60, bookRotation.x));
+
+                applyRotation();
+                previousMousePosition = { x: e.clientX, y: e.clientY };
+            });
+
+            window.addEventListener('mouseup', () => {
+                isDragging3d = false;
+            });
+
+            // Touch events for mobile 3D rotation
+            scene.addEventListener('touchstart', (e) => {
+                if (e.touches.length === 1) {
+                    isDragging3d = true;
+                    previousMousePosition = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+                }
+            });
+
+            window.addEventListener('touchmove', (e) => {
+                if (!isDragging3d || e.touches.length !== 1) return;
+                const deltaX = e.touches[0].clientX - previousMousePosition.x;
+                const deltaY = e.touches[0].clientY - previousMousePosition.y;
+
+                bookRotation.y += deltaX * 0.7;
+                bookRotation.x -= deltaY * 0.7;
+                bookRotation.x = Math.max(-60, Math.min(60, bookRotation.x));
+
+                applyRotation();
+                previousMousePosition = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+            });
+
+            window.addEventListener('touchend', () => {
+                isDragging3d = false;
+            });
+
+            resetBtn.addEventListener('click', () => {
+                bookRotation = { x: 10, y: -25 };
+                applyRotation();
+                AudioFX.playPageFlip();
+            });
+        }
+
+        /* -------------------------------------------------------------
+           INTERACTIVE DEMO MODE ("DEMO IN ACTION")
+        ---------------------------------------------------------------- */
+        async function runInteractiveDemo() {
+            const demoBtn = document.getElementById('runDemoBtn');
+            demoBtn.disabled = true;
+            demoBtn.classList.remove('animate-pulse');
+
+            showToast('⚡ Starting Lumina Interactive Live Demo...', 'info');
+            AudioFX.playChime();
+
+            // Step 1: Theme Switch Demo
+            await sleep(1500);
+            const themes = ['theme-celestial', 'theme-synthwave', 'theme-kawaii', 'theme-walnut'];
+            const targetTheme = themes[Math.floor(Math.random() * themes.length)];
+            document.getElementById('bgThemeSelect').value = targetTheme;
+            setBackgroundTheme(targetTheme);
+            showToast(`🎨 Atmospheric Theme changed to: ${targetTheme.replace('theme-', '')}`, 'success');
+            AudioFX.playChime();
+
+            // Step 2: Open Book Detail in 3D
+            await sleep(2000);
+            const sampleBook = books[0] || defaultBooks[0];
+            openBookDetails(sampleBook.id);
+            showToast(`📖 Pulled "${sampleBook.title}" off shelf in 3D!`, 'info');
+
+            // Step 3: Rotate Book 3D Automatically
+            await sleep(1000);
+            const bookObj = document.getElementById('book3dObject');
+            bookObj.style.transition = 'transform 1.2s cubic-bezier(0.16, 1, 0.3, 1)';
+            bookRotation = { x: 15, y: 160 }; // Show back cover
+            bookObj.style.transform = `rotateX(${bookRotation.x}deg) rotateY(${bookRotation.y}deg)`;
+            AudioFX.playPageFlip();
+            showToast('🔄 Viewing realistic back cover & ISBN barcode...', 'info');
+
+            await sleep(1800);
+            bookRotation = { x: 10, y: -25 }; // Reset front view
+            bookObj.style.transform = `rotateX(${bookRotation.x}deg) rotateY(${bookRotation.y}deg)`;
+            setTimeout(() => { bookObj.style.transition = 'transform 0.1s ease-out'; }, 1200);
+
+            // Step 4: Simulate Updating Progress
+            await sleep(1500);
+            const inputPage = document.getElementById('detailCurrentPageInput');
+            const newPageVal = Math.min(sampleBook.pages, (sampleBook.currentPage || 100) + 50);
+            inputPage.value = newPageVal;
+            updateProgressDisplay(newPageVal, sampleBook.pages);
+            AudioFX.playPageFlip();
+            showToast(`✍️ Updated reading progress to page ${newPageVal}!`, 'success');
+
+            // Step 5: Close Modal & Open Scanner
+            await sleep(2200);
+            document.getElementById('bookDetailModal').classList.add('hidden');
+            document.getElementById('scannerModal').classList.remove('hidden');
+            showToast('📷 Opening barcode & ISBN lookup camera scanner...', 'info');
+
+            // Step 6: Trigger Barcode Scan Demo
+            await sleep(1500);
+            const demoIsbn = '9780441172719';
+            document.getElementById('isbnSearchInput').value = demoIsbn;
+            AudioFX.playScanBeep();
+            performIsbnLookup(demoIsbn);
+
+            await sleep(2000);
+            document.getElementById('scannerModal').classList.add('hidden');
+            showToast('✨ Live demo complete! Explore and build your personal library.', 'success');
+            demoBtn.disabled = false;
+        }
+
+        function sleep(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
+        }
+
+        function openBookDetails(bookId) {
+            const book = books.find(b => b.id === bookId);
+            if (!book) return;
+
+            currentEditingBookId = bookId;
+            AudioFX.playPullBook();
+
+            document.getElementById('detailTitle').textContent = book.title;
+            document.getElementById('detailAuthor').textContent = `by ${book.author}`;
+            document.getElementById('detailCategoryBadge').textContent = book.category;
+            document.getElementById('detailSynopsis').textContent = book.synopsis || 'No synopsis available.';
+            document.getElementById('detail3dBackSynopsis').textContent = book.synopsis || 'Synopsis preview...';
+            document.getElementById('detailBookId').textContent = `#${book.id}`;
+            document.getElementById('detailTotalPagesSpan').textContent = book.pages;
+            document.getElementById('detailCurrentPageInput').value = book.currentPage || 0;
+            document.getElementById('detailCurrentPageInput').max = book.pages;
+            document.getElementById('detailStatusSelect').value = book.status || 'unread';
+
+            const imgEl = document.getElementById('detailCoverImg');
+            const fallbackEl = document.getElementById('detailCoverFallback');
+            const coverContainer = document.getElementById('detailCoverContainer');
+            const glowEl = document.getElementById('coverAmbientGlow');
+            const textureOverlay = document.getElementById('detailCoverTextureOverlay');
+            const spine3d = document.getElementById('detail3dSpine');
+            const spine3dText = document.getElementById('detail3dSpineText');
+
+            coverContainer.style.backgroundColor = book.spineColor || '#1e293b';
+            coverContainer.style.color = book.textColor || '#ffffff';
+            glowEl.style.backgroundColor = book.spineColor || '#f59e0b';
+            
+            spine3d.style.backgroundColor = book.spineColor || '#8b263e';
+            spine3d.style.color = book.textColor || '#ffffff';
+            spine3dText.textContent = book.title;
+
+            textureOverlay.className = `absolute inset-0 pointer-events-none opacity-40 ${book.spinePattern || 'texture-leather'}`;
+
+            if (book.coverUrl) {
+                imgEl.src = book.coverUrl;
+                imgEl.classList.remove('hidden');
+                fallbackEl.classList.add('hidden');
+            } else {
+                imgEl.classList.add('hidden');
+                fallbackEl.classList.remove('hidden');
+                document.getElementById('detailFallbackTitle').textContent = book.title;
+                document.getElementById('detailFallbackAuthor').textContent = book.author;
+                document.getElementById('detailFallbackGenre').textContent = book.category;
+            }
+
+            // Reset 3D Rotation
+            bookRotation = { x: 10, y: -25 };
+            document.getElementById('book3dObject').style.transform = `rotateX(${bookRotation.x}deg) rotateY(${bookRotation.y}deg)`;
+
+            updateProgressDisplay(book.currentPage || 0, book.pages);
+            renderStarRating(book.rating || 0);
+
+            document.getElementById('bookDetailModal').classList.remove('hidden');
+        }
+
+        function saveState() {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(books));
+            localStorage.setItem(CAT_STORAGE_KEY, JSON.stringify(categories));
+            localStorage.setItem(LABEL_STYLE_KEY, JSON.stringify(shelfLabelStyles));
+            updateStats();
+        }
+
+        function renderLibrary() {
+            const container = document.getElementById('bookshelvesContainer');
+            container.innerHTML = '';
+
+            const searchQuery = document.getElementById('searchInput').value.toLowerCase().trim();
+
+            const categoriesToRender = activeCategoryFilter === 'All' 
+                ? categories 
+                : categories.filter(c => c === activeCategoryFilter);
+
+            if (categoriesToRender.length === 0) {
+                container.innerHTML = `
+                    <div class="text-center py-16 text-slate-500">
+                        <i class="fa-solid fa-books text-4xl mb-3"></i>
+                        <p class="text-base font-medium">No category shelves found.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            categoriesToRender.forEach(cat => {
+                let catBooks = books.filter(b => b.category === cat);
+                
+                if (searchQuery) {
+                    catBooks = catBooks.filter(b => 
+                        b.title.toLowerCase().includes(searchQuery) ||
+                        b.author.toLowerCase().includes(searchQuery) ||
+                        b.synopsis.toLowerCase().includes(searchQuery)
+                    );
+                }
+
+                const labelStyle = shelfLabelStyles[cat] || 'label-carved-wood';
+
+                const shelfSection = document.createElement('div');
+                shelfSection.className = 'flex flex-col space-y-2';
+                
+                shelfSection.innerHTML = `
+                    <div class="flex items-center justify-between px-2">
+                        <div class="flex items-center gap-3">
+                            <span class="${labelStyle}">
+                                ${escapeHtml(cat)}
+                            </span>
+                            <span class="text-xs text-slate-400 font-normal">(${catBooks.length} ${catBooks.length === 1 ? 'book' : 'books'})</span>
+                        </div>
+                        <div class="flex items-center gap-3">
+                            <button class="change-label-btn text-xs text-slate-400 hover:text-amber-400 transition-colors" data-cat="${escapeHtml(cat)}">
+                                <i class="fa-solid fa-gear mr-1"></i>Label Style
+                            </button>
+                            ${activeCategoryFilter === 'All' && categories.length > 1 ? `
+                                <button class="delete-cat-btn text-xs text-slate-500 hover:text-rose-400 transition-colors" data-cat="${escapeHtml(cat)}">
+                                    <i class="fa-regular fa-trash-can mr-1"></i>Delete Shelf
+                                </button>
+                            ` : ''}
+                        </div>
+                    </div>
+
+                    <div class="relative shelf-backboard rounded-xl p-4 min-h-[220px] flex flex-col justify-end border border-slate-900/80 shadow-2xl overflow-x-auto custom-scrollbar">
+                        <div class="shelf-spines-row flex items-end gap-2 min-w-full pb-3 px-3 z-10" data-category="${escapeHtml(cat)}">
+                            ${catBooks.length > 0 ? catBooks.map(book => createSpineHTML(book)).join('') : `
+                                <div class="w-full text-center py-10 text-xs text-slate-500 font-medium italic">
+                                    Empty shelf. Drag books here or scan new ones!
+                                </div>
+                            `}
+                        </div>
+
+                        <div class="relative w-full h-7 wood-shelf rounded-b-xl flex items-center justify-center border-t border-amber-900/60 shadow-lg">
+                            <div class="text-[11px] uppercase tracking-widest font-serif font-bold text-amber-200/50 drop-shadow select-none">
+                                • ${escapeHtml(cat)} •
+                            </div>
+                        </div>
+                    </div>
+                `;
+
+                container.appendChild(shelfSection);
+            });
+
+            document.querySelectorAll('.shelf-spines-row').forEach(shelfRow => {
+                new Sortable(shelfRow, {
+                    group: 'bookshelves',
+                    animation: 200,
+                    ghostClass: 'opacity-40',
+                    dragClass: 'scale-105',
+                    onEnd: function (evt) {
+                        const bookId = evt.item.getAttribute('data-id');
+                        const newCategory = evt.to.getAttribute('data-category');
+                        
+                        const book = books.find(b => b.id === bookId);
+                        if (book) {
+                            book.category = newCategory;
+                            saveState();
+                            AudioFX.playPullBook();
+                            showToast(`Moved "${book.title}" to ${newCategory}`, 'success');
+                        }
+                    }
+                });
+            });
+
+            document.querySelectorAll('.book-spine').forEach(spine => {
+                spine.addEventListener('click', () => {
+                    const bookId = spine.getAttribute('data-id');
+                    openBookDetails(bookId);
+                });
+            });
+
+            document.querySelectorAll('.change-label-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const catName = btn.getAttribute('data-cat');
+                    document.getElementById('newCategoryNameInput').value = catName;
+                    document.getElementById('shelfLabelStyleSelect').value = shelfLabelStyles[catName] || 'label-carved-wood';
+                    document.getElementById('categoryModal').classList.remove('hidden');
+                });
+            });
+
+            document.querySelectorAll('.delete-cat-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const catName = btn.getAttribute('data-cat');
+                    deleteCategory(catName);
+                });
+            });
+
+            updateCategoryTabs();
+            updateStats();
+        }
+
+        function createSpineHTML(book) {
+            const spineWidth = Math.min(68, Math.max(34, Math.round(book.pages / 11)));
+            const spineHeight = 155 + (hashString(book.title) % 36);
+            
+            const spineBg = book.spineColor || '#8b263e';
+            const textColor = book.textColor || '#ffd700';
+
+            const textureClass = book.spinePattern || 'texture-leather';
+            const isFoil = book.spinePattern === 'gold-embossed';
+            const textFoilClass = isFoil ? 'spine-foil' : '';
+
+            const ribbonHTML = book.ribbonColor && book.ribbonColor !== 'none' 
+                ? `<div class="bookmark-ribbon" style="background-color: ${book.ribbonColor};"></div>`
+                : '';
+
+            let statusBadge = '';
+            if (book.status === 'reading') {
+                statusBadge = `<div class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse absolute top-2 left-2 shadow-[0_0_8px_#34d399]"></div>`;
+            }
+
+            return `
+                <div class="book-spine relative rounded-t-md rounded-b-md flex flex-col justify-between items-center py-3 px-1 shadow-2xl border-l border-white/10 ${textureClass}"
+                    data-id="${book.id}"
+                    style="width: ${spineWidth}px; height: ${spineHeight}px; background-color: ${spineBg}; color: ${textColor};"
+                    title="${escapeHtml(book.title)} by ${escapeHtml(book.author)}">
+                    
+                    ${ribbonHTML}
+                    ${statusBadge}
+
+                    <div class="absolute inset-0 spine-crease rounded-t-md rounded-b-md pointer-events-none"></div>
+
+                    <div class="w-full border-t border-b border-white/20 my-1 opacity-70"></div>
+
+                    <div class="flex-1 flex items-center justify-center overflow-hidden my-1 z-10">
+                        <div class="transform -rotate-90 whitespace-nowrap text-center origin-center flex flex-col items-center justify-center">
+                            <span class="font-serif font-bold text-xs tracking-wide ${textFoilClass} max-w-[125px] truncate">
+                                ${escapeHtml(book.title)}
+                            </span>
+                            <span class="text-[9px] opacity-80 font-serif italic tracking-tight max-w-[100px] truncate">
+                                ${escapeHtml(book.author)}
+                            </span>
+                        </div>
+                    </div>
+
+                    <div class="w-full flex flex-col items-center gap-1 opacity-75 z-10">
+                        <div class="w-3/4 border-b border-current"></div>
+                        <i class="fa-solid fa-book-bookmark text-[9px]"></i>
+                    </div>
+                </div>
+            `;
+        }
+
+        function updateCategoryTabs() {
+            const tabsContainer = document.getElementById('categoryTabsContainer');
+            const selectDropdown = document.getElementById('formCategory');
+            
+            let html = `
+                <button class="cat-tab px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${activeCategoryFilter === 'All' ? 'bg-amber-500 text-slate-950 shadow-md' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}" data-cat="All">
+                    All Shelves
+                </button>
+            `;
+
+            categories.forEach(cat => {
+                const isActive = activeCategoryFilter === cat;
+                html += `
+                    <button class="cat-tab px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${isActive ? 'bg-amber-500 text-slate-950 shadow-md' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}" data-cat="${escapeHtml(cat)}">
+                        ${escapeHtml(cat)}
+                    </button>
+                `;
+            });
+
+            tabsContainer.innerHTML = html;
+
+            document.querySelectorAll('.cat-tab').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    activeCategoryFilter = btn.getAttribute('data-cat');
+                    renderLibrary();
+                });
+            });
+
+            selectDropdown.innerHTML = categories.map(c => `
+                <option value="${escapeHtml(c)}">${escapeHtml(c)}</option>
+            `).join('');
+        }
+
+        function updateStats() {
+            document.getElementById('statTotalBooks').textContent = books.length;
+            document.getElementById('statReading').textContent = books.filter(b => b.status === 'reading').length;
+            document.getElementById('statCompleted').textContent = books.filter(b => b.status === 'completed').length;
+            
+            const ratedBooks = books.filter(b => b.rating > 0);
+            const avg = ratedBooks.length > 0 
+                ? (ratedBooks.reduce((acc, b) => acc + b.rating, 0) / ratedBooks.length).toFixed(1)
+                : '0.0';
+            document.getElementById('statAvgRating').textContent = avg;
+        }
+
+        function updateProgressDisplay(current, total) {
+            const pct = Math.min(100, Math.max(0, Math.round((current / total) * 100)));
+            document.getElementById('progressBarFill').style.width = `${pct}%`;
+            document.getElementById('progressPercentageText').textContent = `${pct}%`;
+        }
+
+        function renderStarRating(rating) {
+            const stars = document.querySelectorAll('.star-btn');
+            stars.forEach(star => {
+                const r = parseInt(star.getAttribute('data-rating'));
+                if (r <= rating) {
+                    star.className = 'fa-solid fa-star text-amber-400 star-btn cursor-pointer';
+                } else {
+                    star.className = 'fa-regular fa-star text-slate-600 star-btn cursor-pointer';
+                }
+            });
+
+            const labelMap = { 0: 'Unrated', 1: 'Poor', 2: 'Fair', 3: 'Good', 4: 'Very Good', 5: 'Masterpiece' };
+            document.getElementById('ratingValueText').textContent = labelMap[rating] || 'Unrated';
+        }
+
+        async function performIsbnLookup(query) {
+            if (!query) return;
+
+            showToast('Searching Open Library database...', 'info');
+
+            try {
+                const cleanQuery = query.replace(/[^0-9X]/gi, '');
+                let url = '';
+
+                if (cleanQuery.length >= 10) {
+                    url = `https://openlibrary.org/api/books?bibkeys=ISBN:${cleanQuery}&format=json&jscmd=data`;
+                } else {
+                    url = `https://openlibrary.org/search.json?q=${encodeURIComponent(query)}&limit=1`;
+                }
+
+                const resp = await fetch(url);
+                const data = await resp.json();
+
+                let foundTitle = '';
+                let foundAuthor = '';
+                let foundPages = 300;
+                let foundCover = '';
+
+                if (cleanQuery.length >= 10 && data[`ISBN:${cleanQuery}`]) {
+                    const bData = data[`ISBN:${cleanQuery}`];
+                    foundTitle = bData.title || '';
+                    foundAuthor = bData.authors ? bData.authors.map(a => a.name).join(', ') : 'Unknown Author';
+                    foundPages = bData.number_of_pages || 320;
+                    foundCover = bData.cover ? bData.cover.medium : '';
+                } else if (data.docs && data.docs.length > 0) {
+                    const bDoc = data.docs[0];
+                    foundTitle = bDoc.title || '';
+                    foundAuthor = bDoc.author_name ? bDoc.author_name.join(', ') : 'Unknown Author';
+                    foundPages = bDoc.number_of_pages_median || 350;
+                    if (bDoc.cover_i) {
+                        foundCover = `https://covers.openlibrary.org/b/id/${bDoc.cover_i}-M.jpg`;
+                    }
+                }
+
+                if (foundTitle) {
+                    document.getElementById('formTitle').value = foundTitle;
+                    document.getElementById('formAuthor').value = foundAuthor;
+                    document.getElementById('formPageCount').value = foundPages;
+                    document.getElementById('formCoverUrl').value = foundCover;
+                    document.getElementById('formSynopsis').value = `Auto-retrieved lookup for "${foundTitle}".`;
+                    AudioFX.playScanBeep();
+                    showToast(`Found: ${foundTitle}`, 'success');
+                } else {
+                    showToast('Book not found online. Please fill details manually.', 'warning');
+                }
+            } catch (err) {
+                console.error(err);
+                showToast('Network error looking up ISBN.', 'warning');
+            }
+        }
+
+        async function startCameraScanner() {
+            const video = document.getElementById('cameraVideo');
+            const placeholder = document.getElementById('cameraPlaceholder');
+            const overlay = document.getElementById('scanOverlay');
+
+            try {
+                mediaStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+                video.srcObject = mediaStream;
+                video.classList.remove('hidden');
+                video.play();
+                placeholder.classList.add('hidden');
+                overlay.classList.remove('hidden');
+
+                showToast('Camera active. Place ISBN in overlay.', 'info');
+
+                setTimeout(() => {
+                    if (mediaStream) {
+                        const demoIsbns = ['9780441172719', '9780593135204', '9780735211292'];
+                        const randomIsbn = demoIsbns[Math.floor(Math.random() * demoIsbns.length)];
+                        stopCameraScanner();
+                        performIsbnLookup(randomIsbn);
+                    }
+                }, 3500);
+
+            } catch (err) {
+                showToast('Camera permission denied or unavailable.', 'warning');
+            }
+        }
+
+        function stopCameraScanner() {
+            if (mediaStream) {
+                mediaStream.getTracks().forEach(track => track.stop());
+                mediaStream = null;
+            }
+            document.getElementById('cameraVideo').classList.add('hidden');
+            document.getElementById('cameraPlaceholder').classList.remove('hidden');
+            document.getElementById('scanOverlay').classList.add('hidden');
+        }
+
+        function setBackgroundTheme(themeClass) {
+            document.body.className = `h-full font-sans antialiased overflow-x-hidden flex flex-col min-h-screen ${themeClass} transition-colors duration-500`;
+            localStorage.setItem(BG_THEME_KEY, themeClass);
+        }
+
+        function initEventListeners() {
+            init3dRotator();
+
+            // Run Interactive Demo Button
+            document.getElementById('runDemoBtn').addEventListener('click', runInteractiveDemo);
+
+            // Background Theme Selection
+            const themeSelect = document.getElementById('bgThemeSelect');
+            const savedTheme = localStorage.getItem(BG_THEME_KEY) || 'theme-walnut';
+            themeSelect.value = savedTheme;
+            setBackgroundTheme(savedTheme);
+
+            themeSelect.addEventListener('change', (e) => {
+                setBackgroundTheme(e.target.value);
+                AudioFX.playChime();
+                showToast('Library atmosphere updated!', 'info');
+            });
+
+            document.getElementById('searchInput').addEventListener('input', () => {
+                renderLibrary();
+            });
+
+            document.getElementById('openScannerBtn').addEventListener('click', () => {
+                document.getElementById('scannerModal').classList.remove('hidden');
+            });
+
+            document.getElementById('closeScannerBtn').addEventListener('click', () => {
+                stopCameraScanner();
+                document.getElementById('scannerModal').classList.add('hidden');
+            });
+
+            document.getElementById('cancelAddBtn').addEventListener('click', () => {
+                stopCameraScanner();
+                document.getElementById('scannerModal').classList.add('hidden');
+            });
+
+            document.getElementById('startCameraBtn').addEventListener('click', startCameraScanner);
+
+            document.getElementById('doIsbnSearchBtn').addEventListener('click', () => {
+                const val = document.getElementById('isbnSearchInput').value.trim();
+                performIsbnLookup(val);
+            });
+
+            document.querySelectorAll('.preset-isbn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const isbn = btn.getAttribute('data-isbn');
+                    document.getElementById('isbnSearchInput').value = isbn;
+                    performIsbnLookup(isbn);
+                });
+            });
+
+            document.getElementById('tabScanMode').addEventListener('click', () => {
+                document.getElementById('scanModeView').classList.remove('hidden');
+                document.getElementById('tabScanMode').className = 'flex-1 py-2 text-xs sm:text-sm font-semibold rounded-lg bg-amber-500 text-slate-950 transition-all';
+                document.getElementById('tabManualMode').className = 'flex-1 py-2 text-xs sm:text-sm font-semibold rounded-lg text-slate-400 hover:text-slate-200 transition-all';
+            });
+
+            document.getElementById('tabManualMode').addEventListener('click', () => {
+                stopCameraScanner();
+                document.getElementById('scanModeView').classList.add('hidden');
+                document.getElementById('tabManualMode').className = 'flex-1 py-2 text-xs sm:text-sm font-semibold rounded-lg bg-amber-500 text-slate-950 transition-all';
+                document.getElementById('tabScanMode').className = 'flex-1 py-2 text-xs sm:text-sm font-semibold rounded-lg text-slate-400 hover:text-slate-200 transition-all';
+            });
+
+            document.getElementById('bookForm').addEventListener('submit', (e) => {
+                e.preventDefault();
+
+                const newBook = {
+                    id: 'b-' + Date.now(),
+                    title: document.getElementById('formTitle').value.trim(),
+                    author: document.getElementById('formAuthor').value.trim(),
+                    category: document.getElementById('formCategory').value,
+                    pages: parseInt(document.getElementById('formPageCount').value) || 300,
+                    currentPage: 0,
+                    status: document.getElementById('formStatus').value,
+                    rating: 0,
+                    spineColor: document.getElementById('formSpineColor').value,
+                    textColor: document.getElementById('formTextColor').value,
+                    spinePattern: document.getElementById('formSpinePattern').value,
+                    ribbonColor: document.getElementById('formRibbonColor').value,
+                    coverUrl: document.getElementById('formCoverUrl').value.trim(),
+                    synopsis: document.getElementById('formSynopsis').value.trim()
+                };
+
+                books.unshift(newBook);
+                saveState();
+                renderLibrary();
+
+                stopCameraScanner();
+                document.getElementById('scannerModal').classList.add('hidden');
+                document.getElementById('bookForm').reset();
+                AudioFX.playPullBook();
+                showToast(`Added "${newBook.title}" to ${newBook.category}!`, 'success');
+            });
+
+            document.getElementById('closeDetailBtn').addEventListener('click', () => {
+                document.getElementById('bookDetailModal').classList.add('hidden');
+            });
+
+            document.getElementById('detailCurrentPageInput').addEventListener('input', (e) => {
+                const cur = parseInt(e.target.value) || 0;
+                const book = books.find(b => b.id === currentEditingBookId);
+                if (book) {
+                    updateProgressDisplay(cur, book.pages);
+                    AudioFX.playPageFlip();
+                }
+            });
+
+            document.querySelectorAll('.star-btn').forEach(star => {
+                star.addEventListener('click', () => {
+                    const rating = parseInt(star.getAttribute('data-rating'));
+                    renderStarRating(rating);
+                    AudioFX.playChime();
+                    const book = books.find(b => b.id === currentEditingBookId);
+                    if (book) {
+                        book.rating = rating;
+                    }
+                });
+            });
+
+            document.getElementById('saveBookChangesBtn').addEventListener('click', () => {
+                const book = books.find(b => b.id === currentEditingBookId);
+                if (book) {
+                    book.currentPage = parseInt(document.getElementById('detailCurrentPageInput').value) || 0;
+                    book.status = document.getElementById('detailStatusSelect').value;
+                    
+                    if (book.currentPage >= book.pages) {
+                        book.status = 'completed';
+                    }
+
+                    saveState();
+                    renderLibrary();
+                    document.getElementById('bookDetailModal').classList.add('hidden');
+                    AudioFX.playChime();
+                    showToast(`Saved progress for "${book.title}"`, 'success');
+                }
+            });
+
+            document.getElementById('deleteBookBtn').addEventListener('click', () => {
+                if (currentEditingBookId) {
+                    const book = books.find(b => b.id === currentEditingBookId);
+                    books = books.filter(b => b.id !== currentEditingBookId);
+                    saveState();
+                    renderLibrary();
+                    document.getElementById('bookDetailModal').classList.add('hidden');
+                    showToast(`Removed "${book ? book.title : 'Book'}" from library`, 'info');
+                }
+            });
+
+            document.getElementById('addCategoryBtn').addEventListener('click', () => {
+                document.getElementById('newCategoryNameInput').value = '';
+                document.getElementById('categoryModal').classList.remove('hidden');
+            });
+
+            document.getElementById('closeCategoryBtn').addEventListener('click', () => {
+                document.getElementById('categoryModal').classList.add('hidden');
+            });
+
+            document.getElementById('cancelCategoryBtn').addEventListener('click', () => {
+                document.getElementById('categoryModal').classList.add('hidden');
+            });
+
+            document.getElementById('saveCategoryBtn').addEventListener('click', () => {
+                const name = document.getElementById('newCategoryNameInput').value.trim();
+                const style = document.getElementById('shelfLabelStyleSelect').value;
+
+                if (name) {
+                    if (!categories.includes(name)) {
+                        categories.push(name);
+                    }
+                    shelfLabelStyles[name] = style;
+                    saveState();
+                    renderLibrary();
+                    document.getElementById('categoryModal').classList.add('hidden');
+                    AudioFX.playPullBook();
+                    showToast(`Updated shelf label for "${name}"`, 'success');
+                }
+            });
+        }
+
+        function deleteCategory(catName) {
+            if (categories.length <= 1) {
+                showToast('You must keep at least one category shelf.', 'warning');
+                return;
+            }
+
+            categories = categories.filter(c => c !== catName);
+            delete shelfLabelStyles[catName];
+            const fallbackCat = categories[0];
+
+            books.forEach(b => {
+                if (b.category === catName) {
+                    b.category = fallbackCat;
+                }
+            });
+
+            if (activeCategoryFilter === catName) {
+                activeCategoryFilter = 'All';
+            }
+
+            saveState();
+            renderLibrary();
+            showToast(`Deleted shelf. Books moved to ${fallbackCat}`, 'info');
+        }
+
+        function escapeHtml(str) {
+            if (!str) return '';
+            return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+        }
+
+        function hashString(str) {
+            let hash = 0;
+            for (let i = 0; i < str.length; i++) {
+                hash = (hash << 5) - hash + str.charCodeAt(i);
+                hash |= 0;
+            }
+            return Math.abs(hash);
+        }
+
+        function showToast(message, type = 'info') {
+            const toast = document.getElementById('toast');
+            const toastMsg = document.getElementById('toastMsg');
+            const toastIcon = document.getElementById('toastIcon');
+
+            toastMsg.textContent = message;
+
+            if (type === 'success') {
+                toastIcon.innerHTML = '<i class="fa-solid fa-circle-check text-emerald-400"></i>';
+            } else if (type === 'warning') {
+                toastIcon.innerHTML = '<i class="fa-solid fa-triangle-exclamation text-amber-400"></i>';
+            } else {
+                toastIcon.innerHTML = '<i class="fa-solid fa-circle-info text-indigo-400"></i>';
+            }
+
+            toast.classList.remove('translate-y-20', 'opacity-0');
+            toast.classList.add('translate-y-0', 'opacity-100');
+
+            setTimeout(() => {
+                toast.classList.remove('translate-y-0', 'opacity-100');
+                toast.classList.add('translate-y-20', 'opacity-0');
+            }, 3000);
+        }
+
+        window.onload = function() {
+            initEventListeners();
+            renderLibrary();
+        };
+    </script>
+</body>
+</html>
